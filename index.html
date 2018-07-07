@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <style>
+    input[type=button] { width:100px; height:40px; font-size:20px; }
+    textarea { width:100%; height:150px; }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <textarea id="datalist" name="list" id="list" cols="30" rows="10"></textarea>
+    <input type="button" value="自动打币">
+    <ol id="list"></ol>
+    <!-- <div class="adjuster">
+      <style>
+        .adjuster { margin:10px; }
+        .adjuster textarea { width:100%; height:150px; }
+      </style>
+      <h3>调整gas</h3>
+      <textarea id="datalist" name="list" id="list" cols="30" rows="10"></textarea>
+      <input id="nonce" type="text" placeholder="nonce">
+      <input id="submit-adjust" type="button" value="提交调整">
+    </div> -->
+  </div>
+  <script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+  <script src="/static/web3.min.js" async="false"></script>
+  <script src="/static/contract.opt.js"></script>
+  <script src="/static/contractWatcher.opt.js"></script>
+  <script src="/static/data.js"></script>
+  <script>
+
+    // data = ["0x3de2f9592e532079594edeadaacd9299d6d1b00b",'111'];
+    let dataIndex = 0;
+    let dataStep  = 150;
+    let hashes    = [];
+
+    function renderList(list) {
+      $('#list').html(
+        list.reduce(function(prev,item) {
+          return prev + `<li>${item.hash}, ${item.addr}</li>`
+        }, '')
+      )
+    }
+
+    let textarea = $('#datalist')
+    function parseData() {
+      let obj
+      try {
+        obj = JSON.parse(textarea.val().trim())
+      } catch(e) {
+        
+      }
+      return obj;
+    }
+
+    // 转账
+    function transfer(nonce) {
+      let arr = data.slice(dataIndex*dataStep,(dataIndex+1)*dataStep);
+      console.log( arr )
+      if ( !arr.length ) return;
+
+      web3.eth.getGasPrice((err,res)=>{
+        gasPrice = +res.toNumber();
+        contract.executeBatchTransfer( 
+          arr 
+          ,Array.from({length:arr.length}, ()=>{return 30}), 
+          // { gasPrice }, 
+          function(err,res) {
+            if ( err ) console.error(err)
+            else {
+              console.log('_____________', dataIndex)
+              console.log( res)
+              console.log('_____________', dataIndex)
+              dataIndex++
+              hashes.push( { hash:res, addr:arr[0]} )
+              renderList( hashes )
+              transfer();
+            }
+        })
+      })
+      // return;
+    }
+    let watcher = web3.eth.contract(contractWatcherOption.abi).at(contractWatcherOption.address)
+
+    // 监听
+    function listenEvents() {
+      watcher.allEvents({ 
+        from:blockNumber-(60*24*15)*7, to:'latest' 
+      }, function(err,res) {
+        console.log('____________, '+res.event)
+        console.log( err || res )
+        console.log('____________, '+res.event)
+      })
+
+      // let event = watcher.Transfer({
+      //   fromBlock: blockNumber-(60*24*15)*7,
+      //   toBlock  :'latest'
+      // });
+      // event.watch(function(err,res) {
+      //   console.log('____________')
+      //   console.log(err || res)
+      //   console.log('____________')
+      // })
+    }
+
+    
+    let contract    = web3.eth.contract(contractOption.abi).at(contractOption.address)
+    let blockNumber = 0;
+    let gasPrice    = 0;
+    
+    web3.eth.getBlockNumber((err,res)=>{
+      blockNumber = res;
+      listenEvents();
+      // transfer();
+    })
+    web3.eth.getGasPrice((err,res)=>{
+      gasPrice = +res.toNumber()
+    })
+
+
+    $('input[type=button]').on('click', function() {
+      if ( textarea.val().trim() ) {
+        let z = parseData();
+        if ( !z ) return;
+        data = z;
+      }
+      transfer()
+    })
+  </script>
+
+  <script>
+    (function() {
+      return;
+      let adjuster = $('.adjuster')
+      let textarea = adjuster.find('#datalist')
+      let nonce    = adjuster.find('#nonce')
+      let btn      = adjuster.find('#submit-adjust')
+
+
+      btn.on('click', function(e) {
+        let a = parseData()
+        let b = nonce.val().trim()
+        if ( !a ) return alert('json数据错误');
+        if ( !b ) return alert('缺少 nonce')
+
+        dataIndex = 0;
+        data = a;
+        transfer(b)
+      })
+
+      function parseData() {
+        let obj
+        try {
+          obj = JSON.parse(textarea.val().trim())
+        } catch(e) {
+          
+        }
+        return obj;
+      }
+
+    }())
+  </script>
+</body>
+</html>
